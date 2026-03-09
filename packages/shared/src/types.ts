@@ -52,6 +52,8 @@ export interface BillAnalysis {
   summary: string;
   keyChanges: string[];
   affectedLaws: AffectedLaw[];
+  importance: number;        // 1–5 stars
+  importanceReason: string;  // one-sentence explanation
   rawText: string;
   pdfUrl: string;
   aiModel: string;
