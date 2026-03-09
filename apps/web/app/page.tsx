@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Bill, BillFilters } from "@prb/shared";
 import { getBills, getAnalysisStatuses } from "@/lib/bills";
 import type { DocumentSnapshot } from "@/lib/bills";
@@ -14,52 +14,63 @@ export default function BillsListPage() {
   const [bills, setBills] = useState<Bill[]>([]);
   const [analyzedIds, setAnalyzedIds] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<BillFilters>({});
+  const [page, setPage] = useState(1);
+  // cursors[i] = the Firestore cursor to start page (i+1) from
+  const cursorsRef = useRef<(DocumentSnapshot | null)[]>([null]);
+  const [hasNext, setHasNext] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
-  // Pagination: store cursor for each page so we can go back
-  const [page, setPage] = useState(1);
-  const [pageCursors, setPageCursors] = useState<(DocumentSnapshot | null)[]>([null]); // index = page-1
-  const [hasNext, setHasNext] = useState(false);
-
-  const loadPage = useCallback(async (targetPage: number, cursors: (DocumentSnapshot | null)[]) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const cursor = cursors[targetPage - 1] ?? undefined;
-      const result = await getBills(filters, PAGE_SIZE, cursor);
-      setBills(result.bills);
-      setHasNext(result.hasMore);
-
-      // Store cursor for the next page if we don't have it yet
-      if (result.hasMore && result.lastDoc && !cursors[targetPage]) {
-        setPageCursors((prev) => {
-          const next = [...prev];
-          next[targetPage] = result.lastDoc;
-          return next;
-        });
-      }
-
-      getAnalysisStatuses(result.bills.map((b) => b.id)).then(setAnalyzedIds);
-    } catch (err) {
-      console.error(err);
-      setError("Ошибка загрузки данных. Проверьте настройки Firebase.");
-    } finally {
-      setLoading(false);
-    }
-  }, [filters]);
-
-  // Reset to page 1 when filters change
+  // Single effect: runs when page or filters change
   useEffect(() => {
-    setPage(1);
-    setPageCursors([null]);
-    loadPage(1, [null]);
-  }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
+    let cancelled = false;
 
-  const goToPage = (newPage: number) => {
-    setPage(newPage);
-    loadPage(newPage, pageCursors);
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const cursor = cursorsRef.current[page - 1] ?? undefined;
+        const result = await getBills(filters, PAGE_SIZE, cursor);
+        if (cancelled) return;
+
+        setBills(result.bills);
+        setHasNext(result.hasMore);
+
+        // Cache cursor for next page
+        if (result.hasMore && result.lastDoc) {
+          cursorsRef.current[page] = result.lastDoc;
+        }
+
+        // Load AI badge statuses separately, non-blocking
+        getAnalysisStatuses(result.bills.map((b) => b.id))
+          .then((ids) => { if (!cancelled) setAnalyzedIds(ids); })
+          .catch(() => {});
+      } catch (err) {
+        if (!cancelled) {
+          console.error(err);
+          setError("Ошибка загрузки данных. Проверьте настройки Firebase.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
+  }, [page, filters]);
+
+  // When filters change reset to page 1 and clear cached cursors
+  const handleFiltersChange = (newFilters: BillFilters) => {
+    cursorsRef.current = [null];
+    setPage(1);
+    setFilters(newFilters);
+  };
+
+  const handleSearch = (search: string) => {
+    cursorsRef.current = [null];
+    setPage(1);
+    setFilters((f) => ({ ...f, search: search || undefined }));
   };
 
   return (
@@ -73,7 +84,7 @@ export default function BillsListPage() {
 
       <div className="flex gap-6">
         <div className="hidden lg:block w-64 flex-shrink-0">
-          <FilterPanel filters={filters} onChange={setFilters} />
+          <FilterPanel filters={filters} onChange={handleFiltersChange} />
         </div>
 
         <div className="flex-1 min-w-0">
@@ -81,7 +92,7 @@ export default function BillsListPage() {
             <div className="flex-1">
               <SearchBar
                 value={filters.search || ""}
-                onChange={(search) => setFilters((f) => ({ ...f, search }))}
+                onChange={handleSearch}
               />
             </div>
             <button
@@ -98,7 +109,7 @@ export default function BillsListPage() {
 
           {showFilters && (
             <div className="lg:hidden mb-4">
-              <FilterPanel filters={filters} onChange={setFilters} />
+              <FilterPanel filters={filters} onChange={handleFiltersChange} />
             </div>
           )}
 
@@ -130,14 +141,13 @@ export default function BillsListPage() {
                 ))}
               </div>
 
-              {/* Pagination */}
               <div className="flex items-center justify-between mt-6">
                 <p className="text-xs text-gray-400">
-                  Страница {page} · {PAGE_SIZE} записей
+                  Страница {page} · {bills.length} записей
                 </p>
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => goToPage(page - 1)}
+                    onClick={() => setPage((p) => p - 1)}
                     disabled={page === 1 || loading}
                     className="px-3 py-1.5 text-sm rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
@@ -147,7 +157,7 @@ export default function BillsListPage() {
                     {page}
                   </span>
                   <button
-                    onClick={() => goToPage(page + 1)}
+                    onClick={() => setPage((p) => p + 1)}
                     disabled={!hasNext || loading}
                     className="px-3 py-1.5 text-sm rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
                   >

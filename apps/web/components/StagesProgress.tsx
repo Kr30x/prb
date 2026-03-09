@@ -71,9 +71,8 @@ export function StagesProgress({ events, status }: StagesProgressProps) {
 
         {/* Row 2: circles + connectors */}
         {STAGES.map((stage) => {
-          const isActive   = stage.num < active;
-          const isCurrent  = stage.num === active;
-          const isUpcoming = stage.num > active;
+          const isActive  = stage.num < active;
+          const isCurrent = stage.num === active;
 
           return (
             <div key={stage.num} className="flex flex-col items-center gap-2 relative">
@@ -104,7 +103,7 @@ export function StagesProgress({ events, status }: StagesProgressProps) {
                 className={`text-[11px] text-center leading-tight px-1 ${
                   isCurrent ? "text-gray-900 font-semibold"
                 : isActive  ? "text-gray-600"
-                            : "text-gray-400"
+                            : "text-gray-400" // upcoming
                 }`}
               >
                 {stage.label}

@@ -73,8 +73,10 @@ export async function getBills(
 ): Promise<BillsPage> {
   const constraints: QueryConstraint[] = [];
 
-  if (filters.status) {
-    constraints.push(where("status", "==", filters.status));
+  // "Неизвестно" is stored as empty string "" in Firestore
+  const statusValue = filters.status === "Неизвестно" ? "" : filters.status;
+  if (statusValue !== undefined) {
+    constraints.push(where("status", "==", statusValue));
   }
 
   if (filters.convocation) {
@@ -89,7 +91,19 @@ export async function getBills(
   }
 
   const q = query(collection(db, "bills"), ...constraints);
-  const snap = await getDocs(q);
+
+  let snap;
+  try {
+    snap = await getDocs(q);
+  } catch (err: unknown) {
+    // Composite index not ready — surface the Firestore console link
+    const msg = err instanceof Error ? err.message : String(err);
+    const linkMatch = msg.match(/https:\/\/console\.firebase\.google\.com[^\s]*/);
+    if (linkMatch) {
+      throw new Error(`Нужен Firestore индекс. Создайте по ссылке:\n${linkMatch[0]}`);
+    }
+    throw err;
+  }
 
   const hasMore = snap.docs.length > pageSize;
   const docs = hasMore ? snap.docs.slice(0, pageSize) : snap.docs;
