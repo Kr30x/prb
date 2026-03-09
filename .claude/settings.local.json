@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:sozd.duma.gov.ru)",
+      "Bash(npm install:*)",
+      "Bash(npm show:*)",
+      "Bash(npm audit:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx firebase-tools:*)",
+      "Bash(python3 -m json.tool)",
+      "Read(//Users/golubevgleb/.npm/bin/**)",
+      "Read(//usr/local/bin/**)",
+      "Bash(npm list -g firebase-tools)",
+      "Bash(source:*)",
+      "Bash(npm run:*)",
+      "Bash(curl:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(node:*)",
+      "Bash(git:*)"
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@prb/scraper",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "scrape": "ts-node src/index.ts",
+    "test": "ts-node src/test-scraper.ts",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@prb/shared": "*",
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.0.0",
+    "firebase-admin": "^12.0.0",
+    "p-limit": "^3.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}

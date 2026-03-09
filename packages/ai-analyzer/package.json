@@ -1,0 +1,25 @@
+{
+  "name": "@prb/ai-analyzer",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "analyze": "ts-node src/index.ts",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
+    "@prb/shared": "*",
+    "axios": "^1.6.0",
+    "dotenv": "^16.0.0",
+    "firebase-admin": "^12.0.0",
+    "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/pdf-parse": "^1.1.5",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}

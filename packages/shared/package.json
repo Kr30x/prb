@@ -1,0 +1,13 @@
+{
+  "name": "@prb/shared",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "firebase": "^10.0.0",
+    "firebase-admin": "^12.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

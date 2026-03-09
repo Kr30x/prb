@@ -1,0 +1,16 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Bills are publicly readable (read-only)
+    match /bills/{billId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Bill analysis is publicly readable (read-only)
+    match /billAnalysis/{billId} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}
