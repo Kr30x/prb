@@ -12,6 +12,7 @@ import {
   QueryConstraint,
   Timestamp,
 } from "firebase/firestore";
+export { type DocumentSnapshot };
 import { db } from "./firebase";
 import type { Bill, BillAnalysis, BillFilters } from "@prb/shared";
 
@@ -50,6 +51,19 @@ function normalizeBill(id: string, data: any): Bill {
         }
       : { stage: "", date: "" },
   } as Bill;
+}
+
+// Fetch which bill IDs from a given list have a completed AI analysis
+export async function getAnalysisStatuses(billIds: string[]): Promise<Set<string>> {
+  if (billIds.length === 0) return new Set();
+  const results = await Promise.all(
+    billIds.map((id) => getDoc(doc(db, "billAnalysis", id)))
+  );
+  const done = new Set<string>();
+  results.forEach((snap) => {
+    if (snap.exists() && snap.data()?.status === "done") done.add(snap.id);
+  });
+  return done;
 }
 
 export async function getBills(
