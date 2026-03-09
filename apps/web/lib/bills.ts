@@ -90,11 +90,13 @@ export async function getBills(
     constraints.push(startAfter(afterDoc));
   }
 
+  console.log("[getBills] filters:", filters, "statusValue:", statusValue, "constraints:", constraints.length);
   const q = query(collection(db, "bills"), ...constraints);
 
   let snap;
   try {
     snap = await getDocs(q);
+    console.log("[getBills] got", snap.docs.length, "docs");
   } catch (err: unknown) {
     // Composite index not ready — surface the Firestore console link
     const msg = err instanceof Error ? err.message : String(err);
@@ -142,15 +144,40 @@ export async function getBillAnalysis(id: string): Promise<BillAnalysis | null> 
   } as BillAnalysis;
 }
 
-export async function getStatsByStatus(): Promise<StatusStats[]> {
-  const snap = await getDocs(query(collection(db, "bills"), limit(1000)));
-  const counts: Record<string, number> = {};
+export interface GlobalStats {
+  totalBills: number;
+  statusCounts: Record<string, number>;
+  topAuthors: Array<{ name: string; type: string; count: number }>;
+  activityByDay: Record<string, number>;
+  computedAt?: string;
+}
 
+export async function getGlobalStats(): Promise<GlobalStats | null> {
+  const snap = await getDoc(doc(db, "stats", "global"));
+  if (!snap.exists()) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = snap.data() as any;
+  return {
+    ...data,
+    computedAt: timestampToString(data.computedAt),
+  } as GlobalStats;
+}
+
+export async function getStatsByStatus(): Promise<StatusStats[]> {
+  // Try cached stats first
+  const cached = await getGlobalStats();
+  if (cached) {
+    return Object.entries(cached.statusCounts)
+      .map(([status, count]) => ({ status, count }))
+      .sort((a, b) => b.count - a.count);
+  }
+  // Fallback: live query
+  const snap = await getDocs(query(collection(db, "bills"), limit(10000)));
+  const counts: Record<string, number> = {};
   snap.docs.forEach((d) => {
     const status = d.data().status || "Неизвестно";
     counts[status] = (counts[status] || 0) + 1;
   });
-
   return Object.entries(counts)
     .map(([status, count]) => ({ status, count }))
     .sort((a, b) => b.count - a.count);
@@ -173,8 +200,12 @@ export async function getBillsByAuthor(authorName: string): Promise<Bill[]> {
 }
 
 export async function getTopAuthors(
-  topN = 20
+  topN = 20,
 ): Promise<Array<{ name: string; count: number; type: string }>> {
+  // Use cached stats if available
+  const cached = await getGlobalStats();
+  if (cached?.topAuthors) return cached.topAuthors.slice(0, topN);
+
   const snap = await getDocs(
     query(collection(db, "bills"), orderBy("registrationDate", "desc"), limit(1000))
   );
@@ -197,4 +228,73 @@ export async function getTopAuthors(
     .map(([name, { count, type }]) => ({ name, count, type }))
     .sort((a, b) => b.count - a.count)
     .slice(0, topN);
+}
+
+export async function getAnalyzedBillsCount(): Promise<number> {
+  const snap = await getDocs(
+    query(collection(db, "billAnalysis"), where("status", "==", "done"), limit(10000))
+  );
+  return snap.size;
+}
+
+export async function getBillsByDate(date: string): Promise<Bill[]> {
+  // date = "YYYY-MM-DD"
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(date);
+  end.setHours(23, 59, 59, 999);
+
+  const snap = await getDocs(
+    query(
+      collection(db, "bills"),
+      where("registrationDate", ">=", Timestamp.fromDate(start)),
+      where("registrationDate", "<=", Timestamp.fromDate(end)),
+      orderBy("registrationDate", "asc"),
+      limit(100)
+    )
+  );
+  return snap.docs.map((d) => normalizeBill(d.id, d.data()));
+}
+
+// Returns "YYYY-MM-DD" -> count for bills registered in the past 365 days.
+// Pass authorName to filter to a specific author.
+export async function getBillActivityByDay(
+  authorName?: string,
+): Promise<Record<string, number>> {
+  // For global activity (no author filter) use cached stats
+  if (!authorName) {
+    const cached = await getGlobalStats();
+    if (cached?.activityByDay) return cached.activityByDay;
+  }
+  const cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - 1);
+
+  const snap = await getDocs(
+    query(
+      collection(db, "bills"),
+      where("registrationDate", ">=", Timestamp.fromDate(cutoff)),
+      orderBy("registrationDate", "desc"),
+      limit(2000)
+    )
+  );
+
+  const counts: Record<string, number> = {};
+  snap.docs.forEach((d) => {
+    const data = d.data();
+    if (authorName) {
+      const match = (data.authors || []).some((a: { name: string }) =>
+        a.name.toLowerCase().includes(authorName.toLowerCase())
+      );
+      if (!match) return;
+    }
+    const ts = data.registrationDate;
+    let date: Date | null = null;
+    if (ts instanceof Timestamp) date = ts.toDate();
+    else if (ts instanceof Date) date = ts;
+    if (!date) return;
+    const key = date.toISOString().slice(0, 10);
+    counts[key] = (counts[key] || 0) + 1;
+  });
+
+  return counts;
 }

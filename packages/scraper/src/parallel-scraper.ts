@@ -11,6 +11,7 @@ import * as fs from "fs";
 import pLimit from "p-limit";
 import { scrapeBillList, scrapeBillDetail } from "./scraper";
 import { upsertBill, billExists } from "./firebase-writer";
+import { computeAndWriteStats } from "./stats-writer";
 
 const CONCURRENCY = 10;         // parallel detail workers
 const LIST_DELAY_MS = 600;      // delay between list page fetches
@@ -158,4 +159,7 @@ export async function runParallelScrape(mode: "full" | "incremental" = "full"): 
   if (progress.failedIds.length > 0) {
     console.log(`   Failed IDs: ${progress.failedIds.slice(0, 10).join(", ")}${progress.failedIds.length > 10 ? "..." : ""}`);
   }
+
+  // Always recompute stats after a scrape run
+  await computeAndWriteStats();
 }

@@ -7,6 +7,7 @@ dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 import { scrapeBillList, scrapeBillDetail } from "./scraper";
 import { upsertBill, billExists } from "./firebase-writer";
 import { runParallelScrape } from "./parallel-scraper";
+import { computeAndWriteStats } from "./stats-writer";
 
 const args = process.argv.slice(2);
 const modeArg = args.find((a) => a.startsWith("--mode="));
@@ -136,7 +137,9 @@ async function main(): Promise<void> {
   console.log(`Mode: ${mode}`);
 
   try {
-    if (mode === "parallel-full") {
+    if (mode === "stats") {
+      await computeAndWriteStats();
+    } else if (mode === "parallel-full") {
       await runParallelScrape("full");
     } else if (mode === "parallel-incremental") {
       await runParallelScrape("incremental");

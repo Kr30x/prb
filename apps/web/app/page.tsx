@@ -48,8 +48,9 @@ export default function BillsListPage() {
           .catch(() => {});
       } catch (err) {
         if (!cancelled) {
-          console.error(err);
-          setError("Ошибка загрузки данных. Проверьте настройки Firebase.");
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error("getBills error:", msg);
+          setError(msg);
         }
       } finally {
         if (!cancelled) setLoading(false);
